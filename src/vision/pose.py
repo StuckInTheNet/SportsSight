@@ -1,13 +1,18 @@
-"""Pose estimation — skeleton keypoint extraction from player crops."""
+"""Pose estimation — skeleton keypoint extraction using YOLOv8-Pose.
+
+YOLOv8-Pose detects persons AND extracts 17 COCO keypoints in a single
+forward pass on MPS/CUDA. This replaces the previous MMPose dependency
+which had build issues on Python 3.13 and Apple Silicon.
+"""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-import cv2
 import numpy as np
 import torch
+from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
 
@@ -105,27 +110,23 @@ class Skeleton:
 
 
 class PoseEstimator:
-    """Pose estimation using RTMPose (via MMPose) or fallback to MediaPipe."""
+    """Pose estimation using YOLOv8-Pose.
 
-    def __init__(self, device: str = "cpu", model: str = "rtmpose-l") -> None:
+    Runs the pose model on player crops extracted from their bounding boxes.
+    YOLOv8-Pose outputs COCO 17-keypoint skeletons with per-keypoint confidence.
+    """
+
+    def __init__(self, device: str = "cpu", model: str = "yolov8x-pose") -> None:
         self.device = device
         self._model_name = model
-        self._inferencer = None
+        self._model: YOLO | None = None
 
     def load_model(self) -> None:
-        """Load the pose estimation model."""
-        try:
-            from mmpose.apis import MMPoseInferencer
-            self._inferencer = MMPoseInferencer(
-                pose2d=self._model_name,
-                device=self.device,
-            )
-            logger.info("Loaded MMPose model: %s on %s", self._model_name, self.device)
-        except ImportError:
-            logger.warning(
-                "mmpose not available — pose estimation will be unavailable. "
-                "Install with: pip install mmpose mmdet mmengine"
-            )
+        """Load YOLOv8-Pose model."""
+        model_file = f"{self._model_name}.pt"
+        logger.info("Loading pose model: %s on %s", model_file, self.device)
+        self._model = YOLO(model_file)
+        logger.info("Pose model loaded: %s", self._model_name)
 
     def estimate(
         self,
@@ -134,6 +135,9 @@ class PoseEstimator:
         player_ids: list[int],
     ) -> list[Skeleton]:
         """Estimate poses for detected players.
+
+        Runs YOLOv8-Pose on each player crop, then maps keypoints back
+        to full-frame coordinates.
 
         Args:
             frame: Full BGR image
@@ -146,56 +150,101 @@ class PoseEstimator:
         if not bboxes:
             return []
 
-        if self._inferencer is not None:
-            return self._estimate_mmpose(frame, bboxes, player_ids)
-        return self._estimate_fallback(frame, bboxes, player_ids)
+        if self._model is None:
+            return self._empty_skeletons(bboxes, player_ids)
 
-    def _estimate_mmpose(
+        return self._estimate_yolo_pose(frame, bboxes, player_ids)
+
+    def _estimate_yolo_pose(
         self,
         frame: np.ndarray,
         bboxes: list[np.ndarray],
         player_ids: list[int],
     ) -> list[Skeleton]:
-        """Run MMPose inference."""
-        bbox_array = np.array(bboxes)
-
-        results_gen = self._inferencer(
-            frame,
-            bboxes=bbox_array,
-            show=False,
-        )
-        results = next(results_gen)
-
+        """Run YOLOv8-Pose on player crops and map keypoints to frame coords."""
         skeletons: list[Skeleton] = []
-        predictions = results.get("predictions", [[]])[0]
 
-        for pred, bbox, pid in zip(predictions, bboxes, player_ids):
-            kpts = np.array(pred["keypoints"])       # (17, 2)
-            scores = np.array(pred["keypoint_scores"])  # (17,)
-
-            skeletons.append(Skeleton(
-                keypoints=kpts,
-                confidences=scores,
-                bbox=np.array(bbox),
-                player_id=pid,
-            ))
-
-        return skeletons
-
-    def _estimate_fallback(
-        self,
-        frame: np.ndarray,
-        bboxes: list[np.ndarray],
-        player_ids: list[int],
-    ) -> list[Skeleton]:
-        """Fallback: use OpenCV's DNN-based pose estimation or return empty."""
-        logger.debug("No pose model loaded — returning empty skeletons")
-        skeletons: list[Skeleton] = []
         for bbox, pid in zip(bboxes, player_ids):
-            skeletons.append(Skeleton(
-                keypoints=np.zeros((17, 2)),
-                confidences=np.zeros(17),
-                bbox=np.array(bbox),
-                player_id=pid,
-            ))
+            x1, y1, x2, y2 = bbox.astype(int)
+            x1, y1 = max(0, x1), max(0, y1)
+            x2 = min(frame.shape[1], x2)
+            y2 = min(frame.shape[0], y2)
+
+            if x2 <= x1 or y2 <= y1:
+                skeletons.append(self._empty_skeleton(bbox, pid))
+                continue
+
+            crop = frame[y1:y2, x1:x2]
+            if crop.shape[0] < 32 or crop.shape[1] < 16:
+                skeletons.append(self._empty_skeleton(bbox, pid))
+                continue
+
+            results = self._model(
+                crop,
+                device=self.device,
+                conf=0.25,
+                verbose=False,
+            )
+
+            best_skeleton = self._extract_best_pose(results, bbox, pid, x1, y1)
+            skeletons.append(best_skeleton)
+
         return skeletons
+
+    def _extract_best_pose(
+        self,
+        results: list,
+        bbox: np.ndarray,
+        pid: int,
+        offset_x: int,
+        offset_y: int,
+    ) -> Skeleton:
+        """Extract the highest-confidence pose from YOLO results."""
+        for result in results:
+            if result.keypoints is None or len(result.keypoints) == 0:
+                continue
+
+            # Get the detection with highest confidence
+            kpts_data = result.keypoints
+            if hasattr(kpts_data, 'data') and len(kpts_data.data) > 0:
+                # kpts_data.data shape: (N, 17, 3) — x, y, conf
+                all_kpts = kpts_data.data.cpu().numpy()
+
+                # Pick the person with highest average keypoint confidence
+                best_idx = 0
+                best_conf = 0.0
+                for i in range(len(all_kpts)):
+                    avg_conf = all_kpts[i, :, 2].mean()
+                    if avg_conf > best_conf:
+                        best_conf = avg_conf
+                        best_idx = i
+
+                kpts = all_kpts[best_idx]  # (17, 3)
+
+                # Map crop-local coordinates back to full frame
+                keypoints = kpts[:, :2].copy()
+                keypoints[:, 0] += offset_x
+                keypoints[:, 1] += offset_y
+                confidences = kpts[:, 2]
+
+                return Skeleton(
+                    keypoints=keypoints,
+                    confidences=confidences,
+                    bbox=np.array(bbox),
+                    player_id=pid,
+                )
+
+        return self._empty_skeleton(bbox, pid)
+
+    def _empty_skeleton(self, bbox: np.ndarray, pid: int) -> Skeleton:
+        return Skeleton(
+            keypoints=np.zeros((17, 2)),
+            confidences=np.zeros(17),
+            bbox=np.array(bbox),
+            player_id=pid,
+        )
+
+    def _empty_skeletons(
+        self, bboxes: list[np.ndarray], player_ids: list[int]
+    ) -> list[Skeleton]:
+        return [self._empty_skeleton(bbox, pid) for bbox, pid in zip(bboxes, player_ids)]

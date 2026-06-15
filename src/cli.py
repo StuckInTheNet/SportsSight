@@ -137,14 +137,23 @@ def download_models() -> None:
 
     console.print("[bold]Downloading models...[/bold]")
 
-    # YOLOv8
+    # YOLOv8 detection model
     try:
         from ultralytics import YOLO
-        console.print("  Downloading YOLOv8x...")
-        model = YOLO("yolov8x.pt")
+        console.print("  Downloading YOLOv8x (detection)...")
+        YOLO("yolov8x.pt")
         console.print("  [green]YOLOv8x ready[/green]")
     except Exception as e:
         console.print(f"  [red]YOLOv8x failed: {e}[/red]")
+
+    # YOLOv8 pose model
+    try:
+        from ultralytics import YOLO
+        console.print("  Downloading YOLOv8x-Pose...")
+        YOLO("yolov8x-pose.pt")
+        console.print("  [green]YOLOv8x-Pose ready[/green]")
+    except Exception as e:
+        console.print(f"  [red]YOLOv8x-Pose failed: {e}[/red]")
 
     console.print("[green]Model download complete[/green]")
 

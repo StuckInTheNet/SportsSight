@@ -63,7 +63,7 @@ class VisionPipeline:
 
         self.pose = PoseEstimator(
             device=config.device,
-            model=config.pose.get("model", "rtmpose-l"),
+            model=config.pose.get("model", "yolov8x-pose"),
         )
 
         self.court = CourtDetector(

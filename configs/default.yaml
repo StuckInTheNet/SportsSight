@@ -38,7 +38,7 @@ reid:
   gallery_update_interval: 150
 
 pose:
-  model: rtmpose-l
+  model: yolov8x-pose
   # Keypoint confidence threshold
   kpt_threshold: 0.3
   # Skeleton format: coco17 (17 keypoints)
