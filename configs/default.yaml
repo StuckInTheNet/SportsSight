@@ -7,6 +7,8 @@ pipeline:
   batch_size: 4
   # Device selection: auto | mps | cuda | cpu
   device: auto
+  # Pose estimation runs every Nth frame (1 = every frame, 3 = 3x faster)
+  pose_interval: 3
 
 detection:
   model: yolov8x
