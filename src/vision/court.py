@@ -127,7 +127,11 @@ class CourtDetector:
             logger.debug("Homography computation failed")
             return self._current_mapping
 
-        H_inv = np.linalg.inv(H)
+        try:
+            H_inv = np.linalg.inv(H)
+        except np.linalg.LinAlgError:
+            logger.debug("Homography matrix is singular — skipping update")
+            return self._current_mapping
         inlier_ratio = float(np.sum(mask)) / len(mask) if mask is not None else 0.0
 
         self._current_mapping = CourtMapping(

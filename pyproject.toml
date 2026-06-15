@@ -62,7 +62,7 @@ gpu-optimize = [
 ]
 
 [project.scripts]
-sportssight = "sportssight.cli:main"
+sportssight = "src.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -90,7 +90,7 @@ class _PlayerState:
     speeds: deque = field(default_factory=lambda: deque(maxlen=900))
     skeletons: deque = field(default_factory=lambda: deque(maxlen=300))
     hip_heights: deque = field(default_factory=lambda: deque(maxlen=300))
-    sprint_timestamps: list = field(default_factory=list)
+    sprint_timestamps: deque = field(default_factory=lambda: deque(maxlen=500))
     last_sprint_end: float = 0.0
     ankle_positions: deque = field(default_factory=lambda: deque(maxlen=60))
 
@@ -131,7 +131,7 @@ class FeatureExtractor:
             state.skeletons.append((result.timestamp_ms, skeleton))
 
             # Update ankle tracking for stride computation
-            self._update_ankle_tracking(skeleton, state)
+            self._update_ankle_tracking(skeleton, state, result.timestamp_ms)
 
             # Update hip height for jump detection
             hip = skeleton.hip_center
@@ -244,13 +244,15 @@ class FeatureExtractor:
             if time_span > 0:
                 pf.stride_frequency = len(sign_changes) / (2 * time_span)
 
-    def _update_ankle_tracking(self, skeleton: Skeleton, state: _PlayerState) -> None:
+    def _update_ankle_tracking(
+        self, skeleton: Skeleton, state: _PlayerState, timestamp_ms: float
+    ) -> None:
         la = skeleton.get_keypoint("left_ankle")
         ra = skeleton.get_keypoint("right_ankle")
         if la[2] > 0.3:
-            state.ankle_positions.append((0, la[0]))
+            state.ankle_positions.append((timestamp_ms, la[0]))
         if ra[2] > 0.3:
-            state.ankle_positions.append((0, ra[0]))
+            state.ankle_positions.append((timestamp_ms, ra[0]))
 
     def _compute_defensive_stance(self, pf: PlayerFeatures, state: _PlayerState) -> None:
         """Measure defensive stance from knee flexion angles."""

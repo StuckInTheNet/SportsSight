@@ -126,9 +126,9 @@ class ByteTracker:
             if self.low_thresh <= d.confidence < self.high_thresh
         ]
 
-        # Predict new positions for all tracks
+        # Predict new positions for all tracks (update bbox for IoU matching)
         for track in self._tracks:
-            track.predict()
+            track.bbox = track.predict()
 
         # --- Stage 1: Match high-confidence detections to existing tracks ---
         matched_tracks, unmatched_tracks, unmatched_dets = self._associate(

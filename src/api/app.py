@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -29,6 +30,7 @@ from .database import (
     Team,
     get_session,
     init_db,
+    get_raw_session,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,9 +54,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+
+async def _get_ws_session():
+    """Get a raw async session for WebSocket auth (outside FastAPI DI)."""
+    return get_raw_session()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Tighten in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -117,12 +126,20 @@ class AlertConfigUpdate(BaseModel):
 
 # === Team Endpoints ===
 
+class TeamCreateRequest(BaseModel):
+    name: str
+    sport: str = "basketball"
+    admin_secret: str
+
+
 @app.post("/teams", response_model=TeamResponse)
 async def create_team(
-    data: TeamCreate,
+    data: TeamCreateRequest,
     session: AsyncSession = Depends(get_session),
 ):
-    """Create a new team with an API key."""
+    """Create a new team with an API key. Requires admin secret."""
+    if data.admin_secret != config.api_secret_key:
+        raise HTTPException(status_code=403, detail="Invalid admin secret")
     team = Team(name=data.name, sport=data.sport)
     session.add(team)
     await session.flush()
@@ -345,6 +362,13 @@ async def get_game_alerts(
     team: Team = Depends(get_current_team),
     session: AsyncSession = Depends(get_session),
 ):
+    # Verify game belongs to team
+    game = await session.execute(
+        select(Game).where(Game.id == game_id, Game.team_id == team.id)
+    )
+    if not game.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Game not found")
+
     result = await session.execute(
         select(AlertRecord)
         .where(AlertRecord.game_id == game_id)
@@ -371,23 +395,38 @@ async def get_game_alerts(
 async def live_fatigue_stream(websocket: WebSocket, game_id: str):
     """WebSocket endpoint for real-time fatigue updates during a live game.
 
-    Reads from Redis Stream and pushes to connected clients.
-    Authentication is done via query param: ?api_key=ss_xxx
+    Authentication via query param: ?api_key=ss_xxx
     """
+    # Authenticate before accepting
+    api_key = websocket.query_params.get("api_key")
+    if not api_key:
+        await websocket.close(code=4001, reason="Missing api_key query param")
+        return
+
+    key_hash = hash_api_key(api_key)
+    async with _get_ws_session() as session:
+        result = await session.execute(
+            select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
+        )
+        api_key_record = result.scalar_one_or_none()
+        if not api_key_record:
+            await websocket.close(code=4003, reason="Invalid API key")
+            return
+
     await websocket.accept()
 
     redis_client: aioredis.Redis = app.state.redis
     stream_key = f"sportssight:game:{game_id}:fatigue"
     alert_key = f"sportssight:game:{game_id}:alerts"
-    last_id = "$"  # Start from new messages only
+    fatigue_last_id = "$"
+    alert_last_id = "$"
 
     try:
         while True:
-            # Read from both fatigue and alert streams
             streams = await redis_client.xread(
-                {stream_key: last_id, alert_key: last_id},
+                {stream_key: fatigue_last_id, alert_key: alert_last_id},
                 count=10,
-                block=1000,  # Block for 1 second
+                block=1000,
             )
 
             for stream_name, messages in streams:
@@ -397,12 +436,13 @@ async def live_fatigue_stream(websocket: WebSocket, game_id: str):
                             "type": "fatigue_update",
                             "data": data,
                         })
+                        fatigue_last_id = msg_id
                     elif "alerts" in stream_name:
                         await websocket.send_json({
                             "type": "alert",
                             "data": data,
                         })
-                    last_id = msg_id
+                        alert_last_id = msg_id
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected from game %s", game_id)

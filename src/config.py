@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,8 @@ from typing import Any
 import torch
 import yaml
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -94,6 +98,16 @@ class Config:
         return self._yaml.get("pipeline", {})
 
 
+def _generate_ephemeral_key() -> str:
+    """Generate a random key when API_SECRET_KEY is not set."""
+    key = secrets.token_urlsafe(32)
+    logger.warning(
+        "API_SECRET_KEY not set — generated ephemeral key. "
+        "Set API_SECRET_KEY in .env for persistent team creation."
+    )
+    return key
+
+
 def load_config(config_path: Path | None = None) -> Config:
     """Load configuration from YAML file with env var overrides."""
     path = config_path or CONFIG_DIR / "default.yaml"
@@ -111,7 +125,7 @@ def load_config(config_path: Path | None = None) -> Config:
         redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
         api_host=os.getenv("API_HOST", "0.0.0.0"),
         api_port=int(os.getenv("API_PORT", "8000")),
-        api_secret_key=os.getenv("API_SECRET_KEY", "change-me-in-production"),
+        api_secret_key=os.getenv("API_SECRET_KEY") or _generate_ephemeral_key(),
         device=os.getenv("DEVICE", yaml_data.get("pipeline", {}).get("device", "auto")),
         _yaml=yaml_data,
     )

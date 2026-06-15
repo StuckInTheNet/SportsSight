@@ -293,12 +293,20 @@ class FatigueModel:
             0.01,  # distance_traveled
         ], dtype=np.float32)
 
+        # Features where INCREASE indicates fatigue (inverted sign)
+        # Indices: 11=recovery_time, 13=torso_lean, 14=shoulder_asymmetry
+        inverted_indices = {11, 13, 14}
+
         # Compute per-feature deviation
         deviation = np.zeros_like(current)
         for i in range(len(current)):
             if baseline[i] > 1e-6:
-                # Negative deviation = decline = fatigue
-                deviation[i] = (baseline[i] - current[i]) / baseline[i]
+                if i in inverted_indices:
+                    # For these features, increase from baseline = more fatigue
+                    deviation[i] = (current[i] - baseline[i]) / baseline[i]
+                else:
+                    # For most features, decrease from baseline = more fatigue
+                    deviation[i] = (baseline[i] - current[i]) / baseline[i]
             else:
                 deviation[i] = 0.0
 
@@ -320,11 +328,17 @@ class FatigueModel:
         }
 
         # Simple 5-min prediction: extrapolate current trend
+        # Rate is computed over the last 5 score updates, then projected
+        # forward 5 minutes worth of updates (5*60*15 = 4500 frames at 15fps).
         trend = self._compute_trend(pid)
         prev = list(self._prev_scores[pid])
         if len(prev) >= 5:
-            rate = (prev[-1] - prev[-5]) / 5
-            predicted = fatigue_score + rate * 75  # 75 more steps ≈ 5 min at 15fps
+            # Rate of fatigue change per score update
+            rate_per_step = (prev[-1] - prev[-5]) / 5
+            # 5 minutes at 15fps = 4500 steps; cap projection to avoid wild extrapolation
+            steps_in_5min = 4500
+            projected_delta = rate_per_step * min(steps_in_5min, 300)
+            predicted = fatigue_score + projected_delta
         else:
             predicted = fatigue_score
 

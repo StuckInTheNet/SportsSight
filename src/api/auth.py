@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Security
@@ -16,6 +17,14 @@ from .database import APIKey, Team, get_session
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
+@dataclass
+class AuthContext:
+    """Authenticated context — team + role from a single DB lookup."""
+
+    team: Team
+    role: str
+
+
 def hash_api_key(key: str) -> str:
     """SHA-256 hash of an API key for storage."""
     return hashlib.sha256(key.encode()).hexdigest()
@@ -26,11 +35,11 @@ def generate_api_key() -> str:
     return f"ss_{secrets.token_urlsafe(32)}"
 
 
-async def get_current_team(
-    api_key: str | None = Security(api_key_header),
-    session: AsyncSession = Depends(get_session),
-) -> Team:
-    """Validate API key and return the associated team."""
+async def _authenticate(
+    api_key: str | None,
+    session: AsyncSession,
+) -> AuthContext:
+    """Core auth logic — validates key, returns team + role in one pass."""
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
 
@@ -55,30 +64,34 @@ async def get_current_team(
     if not team:
         raise HTTPException(status_code=401, detail="Team not found or inactive")
 
-    return team
+    return AuthContext(team=team, role=api_key_record.role)
+
+
+async def get_current_team(
+    api_key: str | None = Security(api_key_header),
+    session: AsyncSession = Depends(get_session),
+) -> Team:
+    """Validate API key and return the associated team."""
+    ctx = await _authenticate(api_key, session)
+    return ctx.team
 
 
 def require_role(required_role: str):
-    """Dependency that checks the API key's role."""
+    """Dependency that checks the API key's role (single DB lookup)."""
+    role_hierarchy = {"viewer": 0, "analyst": 1, "admin": 2}
+
     async def check_role(
         api_key: str | None = Security(api_key_header),
         session: AsyncSession = Depends(get_session),
     ) -> Team:
-        team = await get_current_team(api_key, session)
+        ctx = await _authenticate(api_key, session)
 
-        key_hash = hash_api_key(api_key)
-        result = await session.execute(
-            select(APIKey).where(APIKey.key_hash == key_hash)
-        )
-        key_record = result.scalar_one()
-
-        role_hierarchy = {"viewer": 0, "analyst": 1, "admin": 2}
-        if role_hierarchy.get(key_record.role, 0) < role_hierarchy.get(required_role, 0):
+        if role_hierarchy.get(ctx.role, 0) < role_hierarchy.get(required_role, 0):
             raise HTTPException(
                 status_code=403,
                 detail=f"Requires {required_role} role or higher",
             )
 
-        return team
+        return ctx.team
 
     return check_role

@@ -156,8 +156,21 @@ async def init_db(database_url: str) -> async_sessionmaker[AsyncSession]:
 
 
 async def get_session() -> AsyncSession:
-    """Get a database session."""
+    """Get a database session with proper error handling."""
     if _session_factory is None:
         raise RuntimeError("Database not initialized. Call init_db() first.")
     async with _session_factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+def get_raw_session() -> AsyncSession:
+    """Get a raw session (for use outside FastAPI DI, e.g. WebSocket auth)."""
+    if _session_factory is None:
+        raise RuntimeError("Database not initialized. Call init_db() first.")
+    return _session_factory()

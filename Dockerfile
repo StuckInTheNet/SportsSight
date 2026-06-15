@@ -11,10 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy source first (hatch needs src/ to build), then install
 COPY pyproject.toml .
+COPY src/ src/
 RUN pip install --no-cache-dir .
 
-COPY src/ src/
 COPY configs/ configs/
 
 EXPOSE 8000

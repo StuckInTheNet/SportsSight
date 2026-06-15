@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from collections import deque
 from typing import Any
 
 import numpy as np
@@ -58,7 +59,7 @@ class RealtimeEngine:
         self._running = False
 
         # Metrics
-        self._frame_times: list[float] = []
+        self._frame_times: deque[float] = deque(maxlen=200)
         self._total_frames = 0
 
     async def initialize(self) -> None:
@@ -74,7 +75,11 @@ class RealtimeEngine:
         logger.info("Connected to Redis at %s", self.config.redis_url)
 
     async def start_game(self, game_id: str, source: VideoSource) -> None:
-        """Begin processing a live game stream."""
+        """Begin processing a live game stream.
+
+        Frame decoding + GPU inference run in a thread to avoid blocking the
+        asyncio event loop. Results are published to Redis asynchronously.
+        """
         self._game_id = game_id
         self._running = True
         self._total_frames = 0
@@ -83,32 +88,51 @@ class RealtimeEngine:
         logger.info("Starting game %s from source %s", game_id, source.source_id)
 
         target_fps = self.config.pipeline.get("inference_fps", 15)
-        source.open()
+
+        # Producer: decode + infer in a thread, push results to a queue
+        result_queue: asyncio.Queue = asyncio.Queue(maxsize=32)
+        loop = asyncio.get_running_loop()
+
+        def _frame_worker():
+            """Runs in a thread — decodes video and processes frames."""
+            source.open()
+            try:
+                for packet in source.read_frames(target_fps=target_fps):
+                    if not self._running:
+                        break
+                    start = time.monotonic()
+                    scores = self._process_frame(packet)
+                    elapsed = (time.monotonic() - start) * 1000
+                    # Schedule queue put from the event loop thread
+                    asyncio.run_coroutine_threadsafe(
+                        result_queue.put((scores, packet, elapsed)), loop
+                    )
+            finally:
+                source.close()
+                asyncio.run_coroutine_threadsafe(
+                    result_queue.put(None), loop  # Sentinel
+                )
+
+        # Start the blocking worker in a thread
+        worker_future = loop.run_in_executor(None, _frame_worker)
 
         try:
-            for packet in source.read_frames(target_fps=target_fps):
-                if not self._running:
+            while True:
+                item = await result_queue.get()
+                if item is None:
                     break
 
-                start = time.monotonic()
+                scores, packet, elapsed = item
+                self._frame_times.append(elapsed)
+                self._total_frames += 1
 
-                # Run the full pipeline
-                scores = self._process_frame(packet)
-
-                # Publish results async
                 if scores:
                     await self._publish_scores(scores, packet)
 
-                # Check for alerts
                 new_alerts = self.alerts.check(scores)
                 if new_alerts:
                     await self._publish_alerts(new_alerts)
 
-                elapsed = (time.monotonic() - start) * 1000
-                self._frame_times.append(elapsed)
-                self._total_frames += 1
-
-                # Log latency periodically
                 if self._total_frames % 100 == 0:
                     avg = np.mean(self._frame_times[-100:])
                     max_lat = self.config.realtime.get("max_latency_ms", 2000)
@@ -117,10 +141,9 @@ class RealtimeEngine:
                         "[%s] Frame %d | Avg latency: %.0fms | %s",
                         game_id, self._total_frames, avg, status,
                     )
-
         finally:
-            source.close()
             self._running = False
+            await asyncio.wrap_future(worker_future)
             logger.info("Game %s ended. Total frames: %d", game_id, self._total_frames)
 
     def _process_frame(self, packet: FramePacket) -> dict[int, FatigueScore]:
