@@ -10,17 +10,8 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torchvision import transforms
 
 logger = logging.getLogger(__name__)
-
-# Standard person re-ID preprocessing
-REID_TRANSFORM = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize((256, 128)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
 
 
 @dataclass
@@ -98,7 +89,12 @@ class PlayerReID:
             self._model = None
 
     def extract_embedding(self, crop: np.ndarray) -> np.ndarray | None:
-        """Extract appearance embedding from a player crop."""
+        """Extract appearance embedding from a player crop.
+
+        torchreid's FeatureExtractor accepts raw image paths or numpy arrays
+        (H,W,C in RGB, uint8). It handles its own resizing and normalization
+        internally, so we only need to convert BGR→RGB and pass the array.
+        """
         if self._model is None:
             return None
 
@@ -106,12 +102,12 @@ class PlayerReID:
             return None
 
         try:
-            # Convert BGR to RGB for the model
+            # Convert BGR to RGB — torchreid expects RGB numpy arrays
             rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-            tensor = REID_TRANSFORM(rgb).unsqueeze(0).to(self.device)
 
-            with torch.no_grad():
-                features = self._model(tensor)
+            # torchreid FeatureExtractor accepts list of numpy arrays directly
+            # It handles resize to (256, 128) and ImageNet normalization internally
+            features = self._model(rgb)
 
             embedding = F.normalize(features, dim=1).cpu().numpy().flatten()
             return embedding

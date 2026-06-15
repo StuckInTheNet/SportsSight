@@ -14,7 +14,7 @@ from uuid import UUID
 import redis.asyncio as aioredis
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,10 +57,6 @@ app = FastAPI(
 ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
 
-async def _get_ws_session():
-    """Get a raw async session for WebSocket auth (outside FastAPI DI)."""
-    return get_raw_session()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -68,6 +64,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# === Health Check ===
+
+@app.get("/health")
+async def health_check():
+    """Liveness probe for Docker / load balancers."""
+    return {"status": "ok"}
 
 
 # === Pydantic Schemas ===
@@ -100,6 +104,26 @@ class GameCreate(BaseModel):
     date: datetime
     venue: str | None = None
     video_source: str | None = None
+
+    @field_validator("video_source")
+    @classmethod
+    def validate_video_source(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from urllib.parse import urlparse
+        parsed = urlparse(v)
+        allowed_schemes = {"http", "https", "rtmp", "rtsp", "rtmps", "hls"}
+        if parsed.scheme not in allowed_schemes:
+            raise ValueError(
+                f"video_source must use one of {sorted(allowed_schemes)} schemes, "
+                f"got '{parsed.scheme}'"
+            )
+        # Block private/internal IPs
+        hostname = parsed.hostname or ""
+        blocked = {"localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "[::1]"}
+        if hostname in blocked or hostname.startswith("10.") or hostname.startswith("192.168."):
+            raise ValueError("video_source cannot reference internal/private addresses")
+        return v
 
 class GameResponse(BaseModel):
     id: UUID
@@ -404,14 +428,18 @@ async def live_fatigue_stream(websocket: WebSocket, game_id: str):
         return
 
     key_hash = hash_api_key(api_key)
-    async with _get_ws_session() as session:
+    session = get_raw_session()
+    try:
         result = await session.execute(
             select(APIKey).where(APIKey.key_hash == key_hash, APIKey.is_active.is_(True))
         )
         api_key_record = result.scalar_one_or_none()
-        if not api_key_record:
-            await websocket.close(code=4003, reason="Invalid API key")
-            return
+    finally:
+        await session.close()
+
+    if not api_key_record:
+        await websocket.close(code=4003, reason="Invalid API key")
+        return
 
     await websocket.accept()
 
