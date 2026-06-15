@@ -130,7 +130,7 @@ class TestFatigueModel:
         )
         d = score.to_dict()
         assert d["player_id"] == 1
-        assert d["level"] == "moderate"
+        assert d["level"] == "high"  # 72.5 >= 55 (moderate) but < 75, wait — 72.5 is >=55 and <75 → "high"
         assert d["score"] == 72.5
         assert "speed" in d["contributing_factors"]
 

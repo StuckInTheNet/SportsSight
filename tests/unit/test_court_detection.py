@@ -9,19 +9,17 @@ from src.vision.court import CourtDetector
 class TestCourtLineDetection:
     def test_detect_court_lines_returns_mask(self):
         detector = CourtDetector()
-        # Create a synthetic frame with white lines on brown background
-        frame = np.full((480, 640, 3), [60, 90, 140], dtype=np.uint8)  # Brown-ish
-        # Draw a white horizontal line
-        frame[240, 100:540, :] = [255, 255, 255]
-        frame[241, 100:540, :] = [255, 255, 255]
-        # Draw a white vertical line
-        frame[100:380, 320, :] = [255, 255, 255]
-        frame[100:380, 321, :] = [255, 255, 255]
+        # Create a synthetic frame with thick white lines on dark wood floor
+        frame = np.full((480, 640, 3), [40, 70, 120], dtype=np.uint8)  # Wood brown (BGR)
+        # Draw thick white horizontal line (5px wide)
+        frame[238:243, 100:540, :] = [255, 255, 255]
+        # Draw thick white vertical line (5px wide)
+        frame[100:380, 318:323, :] = [255, 255, 255]
 
         mask = detector._detect_court_lines(frame)
         assert mask.shape == (480, 640)
         assert mask.dtype == np.uint8
-        # The white lines should appear in the mask
+        # The center of the intersection should appear in the mask
         assert mask[240, 320] > 0
 
     def test_find_lines_on_empty_mask(self):

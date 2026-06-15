@@ -52,7 +52,7 @@ def analyze(video_path: str, game_id: str, output: str | None) -> None:
     console.print(f"[bold]Device:[/bold] {config.device}")
 
     async def run():
-        await engine.initialize()
+        await engine.initialize(require_redis=False)
         results = await engine.process_recorded(game_id, source)
         return results
 

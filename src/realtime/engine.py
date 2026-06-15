@@ -62,17 +62,23 @@ class RealtimeEngine:
         self._frame_times: deque[float] = deque(maxlen=200)
         self._total_frames = 0
 
-    async def initialize(self) -> None:
-        """Load models and connect to Redis."""
+    async def initialize(self, require_redis: bool = True) -> None:
+        """Load models and optionally connect to Redis."""
         logger.info("Initializing real-time engine...")
         self.vision.load_models()
 
-        self._redis = aioredis.from_url(
-            self.config.redis_url,
-            decode_responses=True,
-        )
-        await self._redis.ping()
-        logger.info("Connected to Redis at %s", self.config.redis_url)
+        try:
+            self._redis = aioredis.from_url(
+                self.config.redis_url,
+                decode_responses=True,
+            )
+            await self._redis.ping()
+            logger.info("Connected to Redis at %s", self.config.redis_url)
+        except Exception as e:
+            if require_redis:
+                raise
+            logger.warning("Redis unavailable (%s) — running in offline mode", e)
+            self._redis = None
 
     async def start_game(self, game_id: str, source: VideoSource) -> None:
         """Begin processing a live game stream.

@@ -2,17 +2,13 @@
 name = "sportssight"
 version = "0.1.0"
 description = "Real-time sports video analytics — fatigue detection, play prediction, and biomechanical analysis"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     # === Vision Pipeline ===
     "ultralytics>=8.2.0",          # YOLOv8 detection
     "torch>=2.3.0",                # PyTorch (MPS + CUDA)
     "torchvision>=0.18.0",
     "opencv-python>=4.9.0",        # Video I/O, homography, image processing
-    "mmpose>=1.3.0",               # RTMPose skeleton extraction
-    "mmdet>=3.3.0",                # MMPose dependency
-    "mmengine>=0.10.0",            # MMPose dependency
-    "torchreid>=1.4.0",            # OSNet player re-identification
     "lap>=0.4.0",                  # Linear assignment for ByteTrack
 
     # === Data & ML ===
@@ -56,9 +52,23 @@ dev = [
     "mypy>=1.10.0",
     "pre-commit>=3.7.0",
 ]
+pose = [
+    # MMPose stack — install separately as it has complex deps
+    "mmpose>=1.3.0",
+    "mmdet>=3.3.0",
+    "mmengine>=0.10.0",
+]
+reid = [
+    # torchreid — install from GitHub for latest version:
+    # pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
+    "torchreid>=0.2.5",
+]
 gpu-optimize = [
     "tensorrt>=10.0.0",            # NVIDIA TensorRT for production inference
     "onnxruntime-gpu>=1.18.0",     # ONNX Runtime GPU
+]
+all = [
+    "sportssight[pose,reid,gpu-optimize]",
 ]
 
 [project.scripts]
