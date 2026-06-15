@@ -1,0 +1,15 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+data/raw
+data/processed
+*.mp4
+*.avi
+*.mov
+.env
+.env.local
+dashboard/node_modules
+dashboard/dist
+.DS_Store

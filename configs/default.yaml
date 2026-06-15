@@ -1,0 +1,100 @@
+# SportsSight Default Configuration
+
+pipeline:
+  # Target FPS for inference (broadcast is typically 30fps, we don't need every frame)
+  inference_fps: 15
+  # Batch size for GPU inference
+  batch_size: 4
+  # Device selection: auto | mps | cuda | cpu
+  device: auto
+
+detection:
+  model: yolov8x
+  confidence_threshold: 0.5
+  # Only detect persons (COCO class 0)
+  classes: [0]
+  # Non-max suppression IoU threshold
+  nms_iou: 0.45
+  # Minimum bounding box area (filters out distant/tiny detections)
+  min_area: 2000
+
+tracking:
+  # ByteTrack parameters
+  track_high_thresh: 0.6
+  track_low_thresh: 0.1
+  match_thresh: 0.8
+  # Frames to keep lost track before deletion
+  track_buffer: 60
+  # Minimum track length to consider valid (frames)
+  min_track_length: 10
+
+reid:
+  model: osnet_x1_0
+  # Cosine similarity threshold for matching across camera cuts
+  match_threshold: 0.65
+  # Number of embeddings to average per player identity
+  gallery_size: 10
+  # Re-compute gallery every N frames
+  gallery_update_interval: 150
+
+pose:
+  model: rtmpose-l
+  # Keypoint confidence threshold
+  kpt_threshold: 0.3
+  # Skeleton format: coco17 (17 keypoints)
+  skeleton: coco17
+
+court:
+  # NBA court dimensions in feet
+  length_ft: 94.0
+  width_ft: 50.0
+  # Homography recomputation interval (frames)
+  update_interval: 300
+  # Minimum court line detections to compute homography
+  min_lines: 4
+
+features:
+  # Rolling window sizes (seconds) for feature computation
+  windows: [30, 120, 300]
+  # Metrics to compute
+  metrics:
+    - speed
+    - acceleration
+    - deceleration
+    - stride_length
+    - stride_frequency
+    - lateral_speed
+    - defensive_stance_depth
+    - jump_height
+    - recovery_time
+    - posture_decay
+    - sprint_count
+
+fatigue:
+  # Baseline window: first N minutes of game to establish player norms
+  baseline_window_minutes: 6
+  # Fatigue score thresholds
+  thresholds:
+    low: 30
+    moderate: 55
+    high: 75
+    critical: 90
+  # Alert cooldown (seconds) — don't spam alerts
+  alert_cooldown: 120
+
+realtime:
+  # Redis stream settings
+  stream_max_len: 10000
+  consumer_group: sportssight
+  # Maximum inference latency target (ms)
+  max_latency_ms: 2000
+  # WebSocket heartbeat interval (seconds)
+  ws_heartbeat: 5
+
+api:
+  # Rate limiting (requests per minute)
+  rate_limit: 120
+  # Maximum concurrent WebSocket connections per team
+  max_ws_connections: 50
+  # API key expiry (days)
+  key_expiry_days: 365

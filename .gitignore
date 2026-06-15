@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Data — large files stay local
+data/raw/
+data/processed/
+data/models/
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.h264
+*.weights
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Redis
+dump.rdb
+
+# Dashboard
+dashboard/node_modules/
+dashboard/dist/
+dashboard/.env
+
+# Logs
+logs/
+*.log
+
+# Coverage
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
