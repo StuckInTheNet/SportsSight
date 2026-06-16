@@ -1,12 +1,12 @@
-"""Player re-identification — jersey numbers + color histograms.
+"""Player re-identification — team classification + jersey OCR + appearance matching.
 
-Identity resolution strategy (in priority order):
-1. Jersey number (from OCR) — strongest signal, stable across camera cuts
-2. OSNet appearance embedding (if torchreid available) — good for same-angle continuity
-3. HSV color histogram of jersey region — fallback when above unavailable
+Identity resolution strategy (layered):
+1. Team color classification — constrains matching to same-team only
+2. Jersey number (from OCR) — strongest identity signal across camera cuts
+3. Color histogram similarity (team-constrained) — fallback for unknown jerseys
+4. Post-game track merging — consolidates remaining fragments
 
-The ReID module maps volatile track IDs (which reset on camera cuts) to
-stable player identities that persist across the entire game.
+The ReID module maps volatile track IDs to stable player identities.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import torch
 import torch.nn.functional as F
 
 from .jersey import JerseyDetector
+from .team_classifier import TeamClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PlayerIdentity:
 
     player_id: int
     jersey_number: int | None = None
-    team: str | None = None
+    team_id: int = -1  # 0, 1, or -1 (unknown/referee)
     embeddings: list[np.ndarray] = field(default_factory=list)
     color_histogram: np.ndarray | None = None
     last_seen_frame: int = 0
@@ -48,20 +49,30 @@ class PlayerIdentity:
         if len(self.embeddings) > max_gallery:
             self.embeddings = self.embeddings[-max_gallery:]
 
+    def to_dict(self) -> dict:
+        """Serialize for track merger."""
+        return {
+            "player_id": self.player_id,
+            "jersey_number": self.jersey_number,
+            "team": self.team_id,
+            "color_histogram": self.color_histogram.tolist() if self.color_histogram is not None else None,
+            "track_ids": self.track_ids,
+        }
+
 
 class PlayerReID:
-    """Re-identification engine — jersey numbers + appearance features.
+    """Re-identification engine — team classification + jersey numbers + appearance.
 
-    Jersey number OCR is the primary identity signal. When a track gets a
-    confirmed jersey number, it's mapped to that player for the rest of the
-    game. Color histograms handle the gap before OCR confirms a number.
+    Team classification auto-calibrates from the first 60 player crops, then
+    constrains all appearance matching to same-team only. This eliminates
+    cross-team mismatches and cuts the matching search space in half.
     """
 
     def __init__(
         self,
         model_name: str = "osnet_x1_0",
         device: str = "cpu",
-        match_threshold: float = 0.65,
+        match_threshold: float = 0.50,  # Lowered from 0.65 — team constraint makes this safer
         gallery_size: int = 10,
     ) -> None:
         self.device = device
@@ -71,20 +82,23 @@ class PlayerReID:
         self._reid_model = None
         self._model_name = model_name
         self._jersey_detector = JerseyDetector(device=device)
+        self._team_classifier = TeamClassifier(calibration_samples=60)
 
         # Identity state
         self._identities: dict[int, PlayerIdentity] = {}
         self._track_to_player: dict[int, int] = {}
-        self._jersey_to_player: dict[int, int] = {}  # jersey_number → player_id
+        self._jersey_team_to_player: dict[tuple[int, int], int] = {}  # (jersey, team) → player_id
         self._next_player_id = 1
         self._camera_cut_detected = False
 
+    @property
+    def team_classifier(self) -> TeamClassifier:
+        return self._team_classifier
+
     def load_model(self) -> None:
         """Load ReID and jersey detection models."""
-        # Jersey OCR (primary)
         self._jersey_detector.load_model()
 
-        # OSNet ReID (optional secondary)
         try:
             from torchreid.utils import FeatureExtractor
             self._reid_model = FeatureExtractor(
@@ -93,12 +107,9 @@ class PlayerReID:
             )
             logger.info("Loaded re-ID model: %s", self._model_name)
         except ImportError:
-            logger.info(
-                "torchreid not available — using jersey numbers + color histograms"
-            )
+            logger.info("torchreid not available — using team classification + jersey OCR + color histograms")
 
     def extract_embedding(self, crop: np.ndarray) -> np.ndarray | None:
-        """Extract appearance embedding from a player crop."""
         if self._reid_model is None:
             return None
         if crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
@@ -106,14 +117,12 @@ class PlayerReID:
         try:
             rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
             features = self._reid_model(rgb)
-            embedding = F.normalize(features, dim=1).cpu().numpy().flatten()
-            return embedding
+            return F.normalize(features, dim=1).cpu().numpy().flatten()
         except Exception as e:
             logger.debug("Embedding extraction failed: %s", e)
             return None
 
     def extract_color_histogram(self, crop: np.ndarray) -> np.ndarray:
-        """Extract HSV color histogram from jersey area (upper 60% of crop)."""
         h = crop.shape[0]
         jersey_region = crop[: int(h * 0.6), :]
         hsv = cv2.cvtColor(jersey_region, cv2.COLOR_BGR2HSV)
@@ -122,7 +131,6 @@ class PlayerReID:
         return hist
 
     def detect_camera_cut(self, frame: np.ndarray, prev_frame: np.ndarray | None) -> bool:
-        """Detect abrupt scene change via histogram difference."""
         if prev_frame is None:
             return False
         curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -143,56 +151,57 @@ class PlayerReID:
     ) -> int:
         """Match a track to a player identity. Returns player_id.
 
-        Priority:
-        1. If track already has a confirmed jersey number → use that
-        2. If track has a jersey read that matches a known player → merge
-        3. If no camera cut and track already mapped → keep mapping
-        4. Otherwise → appearance matching or new identity
+        Matching pipeline:
+        1. Classify team (constrains all subsequent matching)
+        2. Try jersey number → (jersey, team) → player_id
+        3. If no camera cut and track mapped → keep
+        4. Appearance match (team-constrained)
+        5. Create new identity
         """
-        # --- Try jersey number identification ---
+        # --- Team classification ---
+        team_id = self._team_classifier.classify(crop, track_id)
+
+        # --- Try jersey number ---
         jersey = self._jersey_detector.detect(crop, track_id, frame_number)
 
-        if jersey is not None:
-            # Check if this jersey number is already mapped to a player
-            if jersey in self._jersey_to_player:
-                player_id = self._jersey_to_player[jersey]
+        if jersey is not None and team_id >= 0:
+            key = (jersey, team_id)
+            if key in self._jersey_team_to_player:
+                player_id = self._jersey_team_to_player[key]
                 self._track_to_player[track_id] = player_id
                 identity = self._identities[player_id]
                 identity.last_seen_frame = frame_number
+                identity.team_id = team_id
                 if track_id not in identity.track_ids:
                     identity.track_ids.append(track_id)
                 return player_id
             else:
-                # New jersey number → assign to existing or new player
+                # New jersey+team combo
                 if track_id in self._track_to_player:
                     player_id = self._track_to_player[track_id]
+                    identity = self._identities[player_id]
                 else:
                     player_id = self._next_player_id
                     self._next_player_id += 1
-                    self._identities[player_id] = PlayerIdentity(
-                        player_id=player_id,
-                        last_seen_frame=frame_number,
-                    )
+                    identity = PlayerIdentity(player_id=player_id, last_seen_frame=frame_number)
+                    self._identities[player_id] = identity
 
-                self._jersey_to_player[jersey] = player_id
-                self._identities[player_id].jersey_number = jersey
+                self._jersey_team_to_player[key] = player_id
+                identity.jersey_number = jersey
+                identity.team_id = team_id
+                identity.color_histogram = self.extract_color_histogram(crop)
                 self._track_to_player[track_id] = player_id
-                if track_id not in self._identities[player_id].track_ids:
-                    self._identities[player_id].track_ids.append(track_id)
-                logger.debug(
-                    "Jersey #%d → Player %d (track %d, frame %d)",
-                    jersey, player_id, track_id, frame_number,
-                )
+                if track_id not in identity.track_ids:
+                    identity.track_ids.append(track_id)
                 return player_id
 
-        # --- No jersey number yet — fall back to appearance ---
-
-        # If no camera cut and track is already mapped, keep it
+        # --- No jersey — continuity check ---
         if track_id in self._track_to_player and not self._camera_cut_detected:
             player_id = self._track_to_player[track_id]
             identity = self._identities[player_id]
             identity.last_seen_frame = frame_number
-            # Periodically refresh appearance features
+            if team_id >= 0:
+                identity.team_id = team_id
             if frame_number % 30 == 0:
                 embedding = self.extract_embedding(crop)
                 if embedding is not None:
@@ -200,7 +209,7 @@ class PlayerReID:
                 identity.color_histogram = self.extract_color_histogram(crop)
             return player_id
 
-        # Need to match by appearance
+        # --- Appearance matching (team-constrained) ---
         embedding = self.extract_embedding(crop)
         color_hist = self.extract_color_histogram(crop)
 
@@ -208,6 +217,14 @@ class PlayerReID:
         best_score = 0.0
 
         for pid, identity in self._identities.items():
+            # Team constraint: skip different-team identities
+            if team_id >= 0 and identity.team_id >= 0 and team_id != identity.team_id:
+                continue
+
+            # Skip identities seen very recently (likely different player in same frame)
+            if abs(identity.last_seen_frame - frame_number) < 3:
+                continue
+
             score = self._compute_similarity(embedding, color_hist, identity)
             if score > best_score:
                 best_score = score
@@ -219,14 +236,20 @@ class PlayerReID:
                 identity.add_embedding(embedding, self.gallery_size)
             identity.color_histogram = color_hist
             identity.last_seen_frame = frame_number
+            if team_id >= 0:
+                identity.team_id = team_id
             identity.track_ids.append(track_id)
             self._track_to_player[track_id] = best_match_id
             return best_match_id
 
-        # New player
+        # --- New identity ---
         player_id = self._next_player_id
         self._next_player_id += 1
-        identity = PlayerIdentity(player_id=player_id, last_seen_frame=frame_number)
+        identity = PlayerIdentity(
+            player_id=player_id,
+            team_id=team_id,
+            last_seen_frame=frame_number,
+        )
         if embedding is not None:
             identity.add_embedding(embedding, self.gallery_size)
         identity.color_histogram = color_hist
@@ -241,7 +264,6 @@ class PlayerReID:
         color_hist: np.ndarray,
         identity: PlayerIdentity,
     ) -> float:
-        """Combined similarity: embedding (70%) + color histogram (30%)."""
         scores: list[float] = []
 
         if embedding is not None and identity.mean_embedding is not None:
@@ -265,10 +287,14 @@ class PlayerReID:
     def get_all_identities(self) -> dict[int, PlayerIdentity]:
         return dict(self._identities)
 
+    def get_identities_for_merger(self) -> dict[int, dict]:
+        """Export identity data for post-game track merging."""
+        return {pid: identity.to_dict() for pid, identity in self._identities.items()}
+
     def reset(self) -> None:
-        """Clear all identity state (between games)."""
         self._identities.clear()
         self._track_to_player.clear()
-        self._jersey_to_player.clear()
+        self._jersey_team_to_player.clear()
         self._next_player_id = 1
         self._jersey_detector.reset()
+        self._team_classifier.reset()

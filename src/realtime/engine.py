@@ -233,10 +233,21 @@ class RealtimeEngine:
         finally:
             source.close()
 
+        # Post-game track merging — consolidate fragmented identities
+        from ..vision.track_merger import TrackMerger
+
+        merger = TrackMerger(similarity_threshold=0.55, min_track_frames=15)
+        identity_data = self.vision.reid.get_identities_for_merger()
+        merge_map = merger.merge(all_scores, identity_data)
+
+        if merge_map:
+            all_scores = merger.apply_merge(all_scores, merge_map)
+
         return {
             "game_id": game_id,
             "total_frames": len(all_scores),
             "timeline": all_scores,
+            "merge_map": {str(k): v for k, v in merge_map.items()},
         }
 
     @property
