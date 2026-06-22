@@ -37,7 +37,8 @@ def main(verbose: bool) -> None:
 @click.argument("video_path", type=click.Path(exists=True))
 @click.option("--game-id", "-g", default="test-game", help="Game identifier")
 @click.option("--output", "-o", type=click.Path(), help="Output JSON path")
-def analyze(video_path: str, game_id: str, output: str | None) -> None:
+@click.option("--annotate/--no-annotate", default=True, help="Output annotated video with bounding boxes")
+def analyze(video_path: str, game_id: str, output: str | None, annotate: bool) -> None:
     """Analyze a recorded game video for fatigue patterns."""
     import json
     from .ingestion.sources import FileSource
@@ -50,10 +51,20 @@ def analyze(video_path: str, game_id: str, output: str | None) -> None:
     console.print(f"[bold]Analyzing:[/bold] {video_path}")
     console.print(f"[bold]Game ID:[/bold] {game_id}")
     console.print(f"[bold]Device:[/bold] {config.device}")
+    console.print(f"[bold]Annotate:[/bold] {annotate}")
+
+    # Determine annotated video output path
+    annotated_path = None
+    if annotate:
+        base = Path(video_path)
+        annotated_path = str(base.parent / f"{base.stem}_annotated.mp4")
+        console.print(f"[bold]Annotated video:[/bold] {annotated_path}")
 
     async def run():
         await engine.initialize(require_redis=False)
-        results = await engine.process_recorded(game_id, source)
+        results = await engine.process_recorded(
+            game_id, source, annotated_video_path=annotated_path,
+        )
         return results
 
     results = asyncio.run(run())

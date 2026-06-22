@@ -202,21 +202,45 @@ class RealtimeEngine:
         if self._redis:
             await self._redis.aclose()
 
-    async def process_recorded(self, game_id: str, source: VideoSource) -> dict[str, Any]:
-        """Process a recorded game (non-live) and return full analysis.
+    async def process_recorded(
+        self,
+        game_id: str,
+        source: VideoSource,
+        annotated_video_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Process a recorded game and return full analysis.
 
-        This is the legacy/historical analysis mode — processes the entire
-        game and returns complete fatigue timelines.
+        If annotated_video_path is provided, writes an MP4 with bounding boxes,
+        player IDs, and fatigue score overlays on each frame.
         """
+        from ..vision.annotator import VideoAnnotator
+
         self._game_id = game_id
         all_scores: list[dict[str, Any]] = []
 
         target_fps = self.config.pipeline.get("inference_fps", 15)
         source.open()
 
+        # Set up video annotator if requested
+        annotator: VideoAnnotator | None = None
+        if annotated_video_path:
+            # Get video dimensions from source
+            w = getattr(source, '_width', 1280)
+            h = getattr(source, '_height', 720)
+            fps = getattr(source, '_fps', 30.0)
+            annotator = VideoAnnotator(annotated_video_path, fps=target_fps, width=w, height=h)
+            annotator.open()
+
         try:
+            frame_count = 0
             for packet in source.read_frames(target_fps=target_fps):
-                scores = self._process_frame(packet)
+                # Run vision pipeline
+                vision_result = self.vision.process_frame(packet)
+
+                # Extract features + score fatigue
+                features = self.features.process(vision_result)
+                scores = self.fatigue.update(features)
+
                 if scores:
                     frame_data = {
                         "frame": packet.frame_number,
@@ -227,13 +251,31 @@ class RealtimeEngine:
                     }
                     all_scores.append(frame_data)
 
-                    # Publish to Redis if connected
                     if self._redis:
                         await self._publish_scores(scores, packet)
+
+                # Annotate frame
+                if annotator:
+                    team_ids = {}
+                    for pid in scores:
+                        identity = self.vision.reid.get_identity(pid)
+                        if identity and identity.team_id >= 0:
+                            team_ids[pid] = identity.team_id
+                    annotator.annotate_frame(packet.frame, vision_result, scores, team_ids)
+
+                frame_count += 1
+                if frame_count % 500 == 0:
+                    logger.info(
+                        "[%s] Processed %d frames (%.1fs)",
+                        game_id, frame_count, packet.timestamp_ms / 1000,
+                    )
+
         finally:
             source.close()
+            if annotator:
+                annotator.close()
 
-        # Post-game track merging — consolidate fragmented identities
+        # Post-game track merging
         from ..vision.track_merger import TrackMerger
 
         merger = TrackMerger(similarity_threshold=0.55, min_track_frames=15)
