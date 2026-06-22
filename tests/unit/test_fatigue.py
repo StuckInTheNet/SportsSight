@@ -71,15 +71,22 @@ class TestFatigueModel:
         return pf
 
     def test_baseline_establishment(self):
-        model = FatigueModel(baseline_window_minutes=6)
+        model = FatigueModel(baseline_window_minutes=6, min_observations=1)
 
-        # Feed data within baseline window (first 6 minutes = 360000ms)
+        # Feed data within baseline window — no scores yet (baseline building)
         features = {
             1: self._make_features(1, 1000, speed=15.0, acceleration=8.0),
         }
         scores = model.update(features)
-        assert 1 in scores
-        assert scores[1].score == 0.0  # No fatigue at start
+        # During baseline window, no scores are produced
+        assert 1 not in scores
+
+        # After baseline window, scores should appear
+        features_post = {
+            1: self._make_features(1, 400000, speed=15.0, acceleration=8.0),
+        }
+        scores_post = model.update(features_post)
+        assert 1 in scores_post
 
     def test_fatigue_increases_with_decline(self):
         model = FatigueModel(baseline_window_minutes=0.1)  # 6 second baseline

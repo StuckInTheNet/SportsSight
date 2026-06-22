@@ -108,6 +108,10 @@ class VisionPipeline:
         # 2. Detect players
         detections = self.detector.detect(frame)
 
+        # 2b. Filter detections outside court bounds (if homography available)
+        if self.court.mapping is not None:
+            detections = self._filter_court_detections(detections, self.court.mapping)
+
         # 3. Track players (maintains IDs within continuous footage)
         tracks = self.tracker.update(detections)
 
@@ -198,6 +202,28 @@ class VisionPipeline:
                     player_id=pid,
                 ))
         return skeletons
+
+    def _filter_court_detections(
+        self, detections: list[Detection], court_mapping: CourtMapping
+    ) -> list[Detection]:
+        """Filter out detections whose foot position maps outside court bounds.
+
+        NBA court is 94x50 feet. We add a generous margin (15ft) to account
+        for sideline players, bench, and homography inaccuracy.
+        """
+        MARGIN = 15.0  # feet
+        filtered = []
+        for det in detections:
+            # Use bottom-center of bbox as foot position
+            foot_x = (det.bbox[0] + det.bbox[2]) / 2
+            foot_y = det.bbox[3]
+            try:
+                cx, cy = court_mapping.pixel_to_court(foot_x, foot_y)
+                if (-MARGIN <= cx <= 94 + MARGIN and -MARGIN <= cy <= 50 + MARGIN):
+                    filtered.append(det)
+            except Exception:
+                filtered.append(det)  # Keep if transform fails
+        return filtered if filtered else detections  # Don't filter to empty
 
     def _get_track_crop(
         self, track: Track, detections: list[Detection], frame: np.ndarray

@@ -175,10 +175,12 @@ class FatigueModel:
         device: str = "cpu",
         baseline_window_minutes: float = 6.0,
         use_learned_model: bool = False,
+        min_observations: int = 30,
     ) -> None:
         self.device = device
         self.baseline_window_ms = baseline_window_minutes * 60 * 1000
         self.use_learned_model = use_learned_model
+        self._min_observations = min_observations  # ~2 seconds at 15fps
 
         # Per-player state
         self._sequences: dict[int, deque] = defaultdict(lambda: deque(maxlen=600))
@@ -203,7 +205,12 @@ class FatigueModel:
         logger.info("Loaded fatigue model weights from %s", path)
 
     def update(self, features: dict[int, PlayerFeatures]) -> dict[int, FatigueScore]:
-        """Process features for all players and return fatigue scores."""
+        """Process features for all players and return fatigue scores.
+
+        Players must be seen for at least `min_observations` frames before
+        they receive a fatigue score. This filters out transient detections
+        (crowd, graphics, brief misdetections) that produce noisy scores.
+        """
         scores: dict[int, FatigueScore] = {}
 
         for pid, pf in features.items():
@@ -214,6 +221,15 @@ class FatigueModel:
             if pf.timestamp_ms <= self.baseline_window_ms:
                 self._baseline_samples[pid].append(feature_array)
                 self._baselines[pid] = np.mean(self._baseline_samples[pid], axis=0)
+
+            # Require minimum observations before scoring
+            # (filters transient detections — crowd, graphics, replays)
+            if len(self._sequences[pid]) < self._min_observations:
+                continue
+
+            # Don't produce scores during baseline window — not enough data yet
+            if pf.timestamp_ms <= self.baseline_window_ms:
+                continue
 
             # Score the player
             if self.use_learned_model and self._model is not None:

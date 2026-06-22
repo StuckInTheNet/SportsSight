@@ -15,21 +15,24 @@ class TestEndToEndFatiguePipeline:
     def test_full_pipeline_synthetic(self):
         """Simulate a player going from fresh to fatigued."""
         extractor = FeatureExtractor(fps=15)
-        fatigue_model = FatigueModel(baseline_window_minutes=0.1)
+        fatigue_model = FatigueModel(
+            baseline_window_minutes=0.05,  # 3 second baseline
+            min_observations=5,
+        )
         alert_mgr = AlertManager(
             thresholds={"moderate": 55, "high": 75, "critical": 90},
-            cooldown=0,  # No cooldown for test
+            cooldown=0,
         )
 
         all_scores: list[FatigueScore] = []
         all_alerts = []
 
-        # Simulate 20 seconds of play
-        for frame in range(300):
+        # Simulate 30 seconds of play (450 frames at 15fps)
+        for frame in range(450):
             timestamp_ms = frame * 66.67  # ~15fps
 
             # Player gradually slows down
-            decay = min(1.0, frame / 300)
+            decay = min(1.0, frame / 450)
             features = {
                 1: PlayerFeatures(
                     player_id=1,
@@ -46,14 +49,16 @@ class TestEndToEndFatiguePipeline:
             scores = fatigue_model.update(features)
             alerts = alert_mgr.check(scores)
 
-            all_scores.append(scores[1])
+            if 1 in scores:
+                all_scores.append(scores[1])
             all_alerts.extend(alerts)
 
-        # Fatigue should generally increase over time
-        early_avg = np.mean([s.score for s in all_scores[:50]])
-        late_avg = np.mean([s.score for s in all_scores[-50:]])
+        # Should have scores (after baseline window + min_observations)
+        assert len(all_scores) > 100
 
-        # Late scores should be higher than early scores
+        # Fatigue should generally increase over time
+        early_avg = np.mean([s.score for s in all_scores[:30]])
+        late_avg = np.mean([s.score for s in all_scores[-30:]])
         assert late_avg > early_avg
 
         # Should have some valid scores
