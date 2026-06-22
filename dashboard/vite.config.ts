@@ -21,6 +21,7 @@ export default defineConfig({
       "/ws": {
         target: "ws://localhost:8000",
         ws: true,
+        rewrite: (p) => p.replace(/^\/ws/, ""),
       },
     },
   },
