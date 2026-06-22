@@ -1,12 +1,22 @@
 const BASE = "/api";
 
+let _apiKey = localStorage.getItem("sportssight_api_key") || "";
+
+export function setApiKey(key: string) {
+  _apiKey = key;
+  localStorage.setItem("sportssight_api_key", key);
+}
+
+export function getApiKey(): string {
+  return _apiKey;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const apiKey = localStorage.getItem("sportssight_api_key") || "";
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": apiKey,
+      "X-API-Key": _apiKey,
       ...options?.headers,
     },
   });
@@ -19,35 +29,51 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export interface TeamInfo {
+  id: string;
+  name: string;
+  sport: string;
+}
+
+export interface PlayerInfo {
+  id: string;
+  name: string;
+  jersey_number: number | null;
+  position: string | null;
+}
+
+export interface GameInfo {
+  id: string;
+  opponent: string | null;
+  date: string;
+  status: string;
+  venue: string | null;
+}
+
+export interface FatigueRecord {
+  player_id: string;
+  timestamp_ms: number;
+  fatigue_score: number;
+  confidence: number;
+  trend: string;
+  speed: number | null;
+  contributing_factors: Record<string, number>;
+}
+
 export const api = {
-  // Teams
-  getTeam: () => request<any>("/teams/me"),
-
-  // Players
-  listPlayers: () => request<any[]>("/players"),
-  createPlayer: (data: any) =>
-    request<any>("/players", { method: "POST", body: JSON.stringify(data) }),
-
-  // Games
+  getTeam: () => request<TeamInfo>("/teams/me"),
+  listPlayers: () => request<PlayerInfo[]>("/players"),
   listGames: (status?: string) =>
-    request<any[]>(`/games${status ? `?status=${status}` : ""}`),
-  getGame: (id: string) => request<any>(`/games/${id}`),
-  createGame: (data: any) =>
-    request<any>("/games", { method: "POST", body: JSON.stringify(data) }),
+    request<GameInfo[]>(`/games${status ? `?status=${status}` : ""}`),
+  getGame: (id: string) => request<GameInfo>(`/games/${id}`),
 
-  // Fatigue data
   getGameFatigue: (gameId: string, params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
-    return request<any[]>(`/games/${gameId}/fatigue${qs}`);
+    return request<FatigueRecord[]>(`/games/${gameId}/fatigue${qs}`);
   },
+
   getPlayerHistory: (playerId: string, lastN = 10) =>
     request<any[]>(`/players/${playerId}/fatigue-history?last_n_games=${lastN}`),
 
-  // Alerts
   getGameAlerts: (gameId: string) => request<any[]>(`/games/${gameId}/alerts`),
-  configureAlerts: (config: any) =>
-    request<any>("/alerts/configure", {
-      method: "POST",
-      body: JSON.stringify(config),
-    }),
 };
