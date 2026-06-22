@@ -8,12 +8,14 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 import redis.asyncio as aioredis
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,6 +74,29 @@ app.add_middleware(
 async def health_check():
     """Liveness probe for Docker / load balancers."""
     return {"status": "ok"}
+
+
+@app.get("/video/{filename}")
+async def serve_video(filename: str):
+    """Serve video files from data/raw/videos/ for the dashboard player."""
+    safe_name = Path(filename).name  # Prevent path traversal
+    video_path = config.data_dir / "raw" / "videos" / safe_name
+    if not video_path.exists() or not video_path.is_file():
+        raise HTTPException(status_code=404, detail="Video not found")
+    return FileResponse(video_path, media_type="video/mp4")
+
+
+@app.get("/video")
+async def list_videos():
+    """List available video files."""
+    video_dir = config.data_dir / "raw" / "videos"
+    if not video_dir.exists():
+        return []
+    return [
+        {"name": f.name, "size_mb": round(f.stat().st_size / 1024 / 1024, 1)}
+        for f in video_dir.iterdir()
+        if f.suffix in {".mp4", ".avi", ".mkv", ".mov", ".webm"}
+    ]
 
 
 # === Pydantic Schemas ===
