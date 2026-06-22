@@ -20,6 +20,7 @@ interface TimelineEntry {
 interface Props {
   data: TimelineEntry[];
   playerIds: string[];
+  playerNames?: Record<string, string>;
   thresholds?: { moderate: number; high: number; critical: number };
 }
 
@@ -28,7 +29,7 @@ const PLAYER_COLORS = [
   "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
 ];
 
-export default function FatigueTimeline({ data, playerIds, thresholds }: Props) {
+export default function FatigueTimeline({ data, playerIds, playerNames, thresholds }: Props) {
   const t = thresholds ?? { moderate: 55, high: 75, critical: 90 };
 
   return (
@@ -59,7 +60,7 @@ export default function FatigueTimeline({ data, playerIds, thresholds }: Props) 
               key={pid}
               type="monotone"
               dataKey={pid}
-              name={`Player ${pid}`}
+              name={playerNames?.[pid] ?? `Player ${pid}`}
               stroke={PLAYER_COLORS[i % PLAYER_COLORS.length]}
               strokeWidth={2}
               dot={false}
