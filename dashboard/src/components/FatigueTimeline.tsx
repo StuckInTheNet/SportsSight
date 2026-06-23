@@ -9,7 +9,6 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
-import type { FatigueScore } from "@/types";
 
 interface TimelineEntry {
   time: string;

@@ -1,5 +1,5 @@
 export interface FatigueScore {
-  player_id: number;
+  player_id: string | number;
   timestamp_ms: number;
   score: number;
   confidence: number;

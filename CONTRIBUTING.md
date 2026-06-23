@@ -42,7 +42,7 @@ Each stage is independently testable. The `RealtimeEngine` orchestrates the full
 | Module | Purpose |
 |--------|---------|
 | `src/ingestion/` | Video source adapters (file, RTMP, RTSP) |
-| `src/vision/` | CV pipeline (YOLO, ByteTrack, OSNet, RTMPose) |
+| `src/vision/` | CV pipeline (YOLO, ByteTrack, YOLOv8-Pose, EasyOCR) |
 | `src/features/` | Biomechanical feature extraction |
 | `src/models/` | Fatigue scoring (rule-based + transformer) |
 | `src/realtime/` | Stream processing engine + alerts |

@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 
 import numpy as np
-import torch
 from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ pipeline:
   pose_interval: 3
 
 detection:
-  model: yolov8x
+  model: yolov8x.pt
   confidence_threshold: 0.5
   # Only detect persons (COCO class 0)
   classes: [0]

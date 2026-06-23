@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from pathlib import Path
 
 import click
@@ -111,8 +110,9 @@ def live(stream_url: str, game_id: str, source_type: str) -> None:
     else:
         source = RTMPSource(stream_url)
 
-    engine_module = __import__("src.realtime.engine", fromlist=["RealtimeEngine"])
-    engine = engine_module.RealtimeEngine(config)
+    from .realtime.engine import RealtimeEngine
+
+    engine = RealtimeEngine(config)
 
     console.print(f"[bold]Live game:[/bold] {game_id}")
     console.print(f"[bold]Stream:[/bold] {stream_url}")

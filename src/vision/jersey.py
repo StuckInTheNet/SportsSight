@@ -116,11 +116,11 @@ class JerseyDetector:
             )
 
             # Also try on the original (unprocessed) region
-        number_raw = self._run_ocr(jersey_region)
-        if number_raw is not None and number_raw != number:
-            self._track_reads[track_id].append(
-                JerseyRead(number=number_raw, confidence=0.6, frame_number=frame_number)
-            )
+            number_raw = self._run_ocr(jersey_region)
+            if number_raw is not None and number_raw != number:
+                self._track_reads[track_id].append(
+                    JerseyRead(number=number_raw, confidence=0.6, frame_number=frame_number)
+                )
 
         # Check if we have enough votes to confirm
         return self._resolve_jersey(track_id)

@@ -57,8 +57,7 @@ async def main():
     print(f"Unique players: {len(all_pids)}")
 
     # Connect to database
-    dsn = DATABASE_URL.replace("postgresql://", "postgres://")
-    conn = await asyncpg.connect(dsn)
+    conn = await asyncpg.connect(DATABASE_URL)
     print("Connected to database")
 
     # Create team

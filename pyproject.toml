@@ -63,12 +63,15 @@ reid = [
     # pip install git+https://github.com/KaiyangZhou/deep-person-reid.git
     "torchreid>=0.2.5",
 ]
+ocr = [
+    "easyocr>=1.7.0",
+]
 gpu-optimize = [
     "tensorrt>=10.0.0",            # NVIDIA TensorRT for production inference
     "onnxruntime-gpu>=1.18.0",     # ONNX Runtime GPU
 ]
 all = [
-    "sportssight[pose,reid,gpu-optimize]",
+    "sportssight[pose,reid,ocr,gpu-optimize]",
 ]
 
 [project.scripts]
