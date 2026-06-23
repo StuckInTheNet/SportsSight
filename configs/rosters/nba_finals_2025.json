@@ -1,0 +1,47 @@
+{
+  "game": "2025 NBA Finals Game 7",
+  "teams": {
+    "Indiana Pacers": {
+      "color": "yellow",
+      "players": {
+        "0": "Tyrese Haliburton",
+        "1": "Obi Toppin",
+        "3": "Buddy Hield",
+        "5": "Jarace Walker",
+        "6": "Ben Sheppard",
+        "7": "T.J. McConnell",
+        "9": "Aaron Nesmith",
+        "10": "Kendall Brown",
+        "11": "Bruce Brown",
+        "22": "Isaiah Jackson",
+        "23": "Andrew Nembhard",
+        "25": "Ben Mathurin",
+        "26": "Bennedict Mathurin",
+        "33": "Myles Turner",
+        "36": "Doug McDermott",
+        "43": "Pascal Siakam"
+      }
+    },
+    "Oklahoma City Thunder": {
+      "color": "blue",
+      "players": {
+        "0": "Isaiah Hartenstein",
+        "1": "Jalen Williams",
+        "2": "Shai Gilgeous-Alexander",
+        "3": "Josh Giddey",
+        "5": "Luguentz Dort",
+        "6": "Jaylin Williams",
+        "8": "Alex Caruso",
+        "10": "Cason Wallace",
+        "12": "Lindy Waters III",
+        "14": "Isaiah Joe",
+        "17": "Kenrich Williams",
+        "21": "Aaron Wiggins",
+        "22": "Chet Holmgren",
+        "23": "Tre Mann",
+        "30": "Ousmane Dieng",
+        "35": "Alex Ducas"
+      }
+    }
+  }
+}

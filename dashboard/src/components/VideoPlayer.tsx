@@ -29,6 +29,7 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs, dataStartMs }: Pro
         if (data.length > 0) {
           // Prefer the annotated video, then 720p, then first
           const pick =
+            data.find((v: VideoFile) => v.name.includes("annotated_h264")) ||
             data.find((v: VideoFile) => v.name.includes("annotated")) ||
             data.find((v: VideoFile) => v.name.includes("720p")) ||
             data[0];

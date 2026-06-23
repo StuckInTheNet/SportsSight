@@ -54,7 +54,7 @@ class VideoAnnotator:
         self._frame_count = 0
 
     def open(self) -> None:
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"avc1")
         self._writer = cv2.VideoWriter(
             str(self.output_path), fourcc, self.fps, (self.width, self.height),
         )
