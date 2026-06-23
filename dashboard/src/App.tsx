@@ -352,7 +352,7 @@ export default function App() {
 
             {/* RIGHT — video + alerts */}
             <div className="space-y-5">
-              <VideoPlayer onTimeUpdate={setVideoTimeMs} />
+              <VideoPlayer onTimeUpdate={setVideoTimeMs} dataStartMs={dataStartMs} />
               <AlertFeed alerts={alerts} />
             </div>
           </div>

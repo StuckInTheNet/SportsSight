@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Pause, SkipBack, SkipForward, Video } from "lucide-react";
+import { FastForward, Pause, Play, SkipBack, SkipForward, Video } from "lucide-react";
 
 interface VideoFile {
   name: string;
@@ -7,13 +7,13 @@ interface VideoFile {
 }
 
 interface Props {
-  /** Called when video time changes — ms from start */
   onTimeUpdate?: (timeMs: number) => void;
-  /** External seek command — set this to jump the video */
   seekToMs?: number;
+  /** When fatigue data starts — enables "Skip to action" button */
+  dataStartMs?: number;
 }
 
-export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
+export default function VideoPlayer({ onTimeUpdate, seekToMs, dataStartMs }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -21,22 +21,23 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // Fetch available videos
   useEffect(() => {
     fetch("/api/video")
       .then((r) => r.json())
       .then((data) => {
         setVideos(data);
         if (data.length > 0) {
-          // Auto-select the 720p video if available, otherwise first
-          const pick = data.find((v: VideoFile) => v.name.includes("720p")) || data[0];
+          // Prefer the annotated video, then 720p, then first
+          const pick =
+            data.find((v: VideoFile) => v.name.includes("annotated")) ||
+            data.find((v: VideoFile) => v.name.includes("720p")) ||
+            data[0];
           setSelectedVideo(pick.name);
         }
       })
       .catch(() => {});
   }, []);
 
-  // Handle time updates from video
   const handleTimeUpdate = useCallback(() => {
     if (!videoRef.current) return;
     const t = videoRef.current.currentTime * 1000;
@@ -44,7 +45,6 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
     onTimeUpdate?.(t);
   }, [onTimeUpdate]);
 
-  // External seek
   useEffect(() => {
     if (seekToMs !== undefined && videoRef.current) {
       videoRef.current.currentTime = seekToMs / 1000;
@@ -67,28 +67,34 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
     videoRef.current.currentTime += seconds;
   };
 
-  const formatTime = (ms: number) => {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+  const jumpToData = () => {
+    if (!videoRef.current || !dataStartMs) return;
+    // Jump to 5 seconds before data starts so user sees the transition
+    videoRef.current.currentTime = Math.max(0, dataStartMs / 1000 - 5);
+    videoRef.current.play();
+    setPlaying(true);
   };
+
+  const fmt = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  };
+
+  const showSkipButton =
+    dataStartMs && dataStartMs > 30000 && currentTime < dataStartMs - 5000;
 
   if (!selectedVideo) {
     return (
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-6 flex flex-col items-center justify-center h-64">
         <Video className="w-8 h-8 text-gray-600 mb-2" />
         <p className="text-sm text-gray-500">No video files found</p>
-        <p className="text-xs text-gray-600 mt-1">
-          Add .mp4 files to data/raw/videos/
-        </p>
+        <p className="text-xs text-gray-600 mt-1">Add .mp4 files to data/raw/videos/</p>
       </div>
     );
   }
 
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-      {/* Video selector */}
       {videos.length > 1 && (
         <div className="px-3 pt-3">
           <select
@@ -105,7 +111,6 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
         </div>
       )}
 
-      {/* Video element */}
       <div className="relative bg-black">
         <video
           ref={videoRef}
@@ -113,21 +118,28 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
           className="w-full"
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => {
-            if (videoRef.current) {
-              setDuration(videoRef.current.duration * 1000);
-            }
+            if (videoRef.current) setDuration(videoRef.current.duration * 1000);
           }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onClick={togglePlay}
         />
+
+        {/* Skip to action overlay */}
+        {showSkipButton && (
+          <button
+            className="absolute bottom-4 right-4 flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-lg transition-colors"
+            onClick={jumpToData}
+          >
+            <FastForward className="w-3.5 h-3.5" />
+            Skip to {fmt(dataStartMs!)}
+          </button>
+        )}
       </div>
 
-      {/* Controls */}
       <div className="px-3 py-2">
-        {/* Progress bar */}
         <div
-          className="h-1.5 bg-gray-700 rounded-full cursor-pointer mb-2 group"
+          className="h-1.5 bg-gray-700 rounded-full cursor-pointer mb-2 group relative"
           onClick={(e) => {
             if (!videoRef.current || !duration) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -135,6 +147,14 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
             videoRef.current.currentTime = (pct * duration) / 1000;
           }}
         >
+          {/* Data start marker */}
+          {dataStartMs && duration > 0 && (
+            <div
+              className="absolute top-0 h-full w-0.5 bg-blue-500 z-10"
+              style={{ left: `${(dataStartMs / duration) * 100}%` }}
+              title={`Fatigue data starts at ${fmt(dataStartMs)}`}
+            />
+          )}
           <div
             className="h-full bg-blue-500 rounded-full transition-all group-hover:bg-blue-400"
             style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
@@ -143,33 +163,17 @@ export default function VideoPlayer({ onTimeUpdate, seekToMs }: Props) {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button
-              className="p-1 hover:bg-gray-800 rounded"
-              onClick={() => skip(-10)}
-            >
+            <button className="p-1 hover:bg-gray-800 rounded" onClick={() => skip(-10)}>
               <SkipBack className="w-4 h-4" />
             </button>
-            <button
-              className="p-1.5 hover:bg-gray-800 rounded-full"
-              onClick={togglePlay}
-            >
-              {playing ? (
-                <Pause className="w-5 h-5" />
-              ) : (
-                <Play className="w-5 h-5" />
-              )}
+            <button className="p-1.5 hover:bg-gray-800 rounded-full" onClick={togglePlay}>
+              {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
-            <button
-              className="p-1 hover:bg-gray-800 rounded"
-              onClick={() => skip(10)}
-            >
+            <button className="p-1 hover:bg-gray-800 rounded" onClick={() => skip(10)}>
               <SkipForward className="w-4 h-4" />
             </button>
           </div>
-
-          <span className="text-xs text-gray-500">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
+          <span className="text-xs text-gray-500">{fmt(currentTime)} / {fmt(duration)}</span>
         </div>
       </div>
     </div>
