@@ -156,6 +156,15 @@ export default function App() {
   const timelinePlayerIds = displayPlayers.map((p) => p.id);
   const timelinePlayerNames = Object.fromEntries(displayPlayers.map((p) => [p.id, playerName(p.id)]));
 
+  // Find when fatigue data starts (for baseline indicator)
+  const dataStartMs = useMemo(() => {
+    if (allRecords.length === 0) return 0;
+    return allRecords[0].timestamp_ms;
+  }, [allRecords]);
+
+  const isInBaseline = viewMode === "live" && videoTimeMs > 0 && videoTimeMs < dataStartMs;
+  const baselineProgress = dataStartMs > 0 ? Math.min(1, videoTimeMs / dataStartMs) : 0;
+
   // --- Auth screen ---
   if (!authenticated) {
     return (
@@ -302,9 +311,34 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="text-gray-500 text-sm py-8 text-center border border-gray-800 rounded-xl">
-                    {viewMode === "live" && videoTimeMs === 0
-                      ? "Play the video to reveal fatigue data as the game progresses"
-                      : "Loading fatigue data..."}
+                    {viewMode === "live" && videoTimeMs === 0 ? (
+                      "Play the video to reveal fatigue data as the game progresses"
+                    ) : isInBaseline ? (
+                      <div className="space-y-3 px-8">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                          <span className="text-blue-400 font-medium">Building Player Baselines</span>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Establishing performance baselines for each player.
+                          Fatigue scoring begins at {fmtTime(dataStartMs)}.
+                        </p>
+                        <div className="max-w-xs mx-auto">
+                          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                              style={{ width: `${baselineProgress * 100}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-600 mt-1">
+                            <span>{fmtTime(videoTimeMs)}</span>
+                            <span>{fmtTime(dataStartMs)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      "Loading fatigue data..."
+                    )}
                   </div>
                 )}
               </section>
