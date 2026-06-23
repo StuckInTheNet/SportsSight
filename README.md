@@ -1,11 +1,8 @@
 <p align="center">
-  <img src="assets/logo.png" width="180" alt="SportsSight Logo"/>
+  <img src="assets/logo.png" width="500" alt="SportsSight — Real-time Fatigue Analytics"/>
 </p>
 
-<h1 align="center">SportsSight</h1>
-
 <p align="center">
-  <strong>Real-time fatigue analytics from broadcast video for any sport.</strong><br/>
   Detect player fatigue before it becomes a liability — from any camera feed, any sport, any level.
 </p>
 
