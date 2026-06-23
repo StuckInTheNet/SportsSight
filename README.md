@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/hero_banner.png" width="100%" alt="SportsSight — Real-time Fatigue Analytics"/>
+  <img src="assets/hero_banner.png" width="100%" alt="SportsSight - Real-time Fatigue Analytics"/>
 </p>
 
 <p align="center">
@@ -13,11 +13,11 @@
 
 ## The Problem
 
-Coaches make substitution decisions based on feel. A player's speed drops 15%, their defensive stance gets lazy, their recovery between sprints takes twice as long — but nobody quantifies it in real time. By the time fatigue is visible to the eye, it's already cost you points.
+Coaches make substitution decisions based on feel. A player's speed drops 15%, their defensive stance gets lazy, their recovery between sprints takes twice as long - but nobody quantifies it in real time. By the time fatigue is visible to the eye, it's already cost you points.
 
 ## What SportsSight Does
 
-SportsSight processes game video — broadcast feeds, arena cameras, or recorded footage — and produces **per-player fatigue scores** updated every frame. It tracks 16 biomechanical indicators and alerts coaching staff when players cross configurable fatigue thresholds.
+SportsSight processes game video - broadcast feeds, arena cameras, or recorded footage - and produces **per-player fatigue scores** updated every frame. It tracks 16 biomechanical indicators and alerts coaching staff when players cross configurable fatigue thresholds.
 
 ```
 Camera Feed → Player Detection → Tracking → Pose Estimation → Biomechanics → Fatigue Model → Dashboard
@@ -40,7 +40,7 @@ Adding a new sport requires: (1) a field/court mapping module, (2) sport-specifi
 
 ## Demo: 2025 NBA Finals
 
-Analyzed 720p broadcast footage of the 2025 NBA Finals (Pacers vs Thunder) — results from real pipeline output:
+Analyzed 720p broadcast footage of the 2025 NBA Finals (Pacers vs Thunder) - results from real pipeline output:
 
 <p align="center">
   <img src="assets/annotated_frame.png" width="700" alt="Annotated frame showing bounding boxes and fatigue scores"/>
@@ -58,10 +58,10 @@ Analyzed 720p broadcast footage of the 2025 NBA Finals (Pacers vs Thunder) — r
 
 Each player gets a score from **0** (fresh) to **100** (exhausted), computed from deviation against their own first-quarter baseline:
 
-- **0–29 (Low)** — Performing at or near baseline
-- **30–54 (Moderate)** — Measurable decline in 2+ indicators  
-- **55–74 (High)** — Significant decline — substitution window
-- **75–100 (Critical)** — Multiple systems degraded — sub immediately
+- **0–29 (Low)** - Performing at or near baseline
+- **30–54 (Moderate)** - Measurable decline in 2+ indicators  
+- **55–74 (High)** - Significant decline - substitution window
+- **75–100 (Critical)** - Multiple systems degraded - sub immediately
 
 ### 16 Biomechanical Features
 
@@ -164,7 +164,7 @@ cp .env.example .env
 ### Analyze a Game
 
 ```bash
-# Process a video file — outputs JSON results + annotated video
+# Process a video file - outputs JSON results + annotated video
 sportssight analyze path/to/game.mp4 --game-id my-game -o results.json
 
 # The annotated video (with bounding boxes) is saved alongside:
@@ -266,11 +266,11 @@ tests/                      # 93 tests (unit + integration)
 
 ## Adding a New Sport
 
-1. **Court/field module** — Create `src/vision/field_soccer.py` (or similar) with field dimensions and line detection logic
-2. **Detection filters** — Adjust aspect ratio and min area thresholds in config for the sport's player appearance
-3. **Feature weights** — Update `FatigueModel._score_rule_based()` weights to reflect which biomechanical signals matter most for the sport
-4. **Roster config** — Add team roster JSON to `configs/rosters/`
-5. **Config preset** — Add a YAML config preset in `configs/` with sport-specific parameters
+1. **Court/field module** - Create `src/vision/field_soccer.py` (or similar) with field dimensions and line detection logic
+2. **Detection filters** - Adjust aspect ratio and min area thresholds in config for the sport's player appearance
+3. **Feature weights** - Update `FatigueModel._score_rule_based()` weights to reflect which biomechanical signals matter most for the sport
+4. **Roster config** - Add team roster JSON to `configs/rosters/`
+5. **Config preset** - Add a YAML config preset in `configs/` with sport-specific parameters
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidance.
 
@@ -309,14 +309,14 @@ All endpoints (except `/health` and `/teams` POST) require `X-API-Key` header.
 
 ## Roadmap
 
-- [ ] **Transformer training pipeline** — Train `FatigueTransformer` on SportVU data for learned fatigue scoring
-- [ ] **Soccer support** — Field mapping, distance-based fatigue, pressing metrics
-- [ ] **Jersey number fine-tuning** — Train YOLOv8 on Roboflow jersey OCR dataset for reliable player identification
-- [ ] **torchreid integration** — OSNet appearance embeddings for stronger cross-cut re-identification
-- [ ] **Real-time inference optimization** — TensorRT/ONNX export for sub-second latency
-- [ ] **Game report export** — PDF/HTML post-game fatigue reports with charts and recommendations
-- [ ] **Historical player modeling** — Cross-game fatigue baselines that adapt to individual player physiology
+- [ ] **Transformer training pipeline** - Train `FatigueTransformer` on SportVU data for learned fatigue scoring
+- [ ] **Soccer support** - Field mapping, distance-based fatigue, pressing metrics
+- [ ] **Jersey number fine-tuning** - Train YOLOv8 on Roboflow jersey OCR dataset for reliable player identification
+- [ ] **torchreid integration** - OSNet appearance embeddings for stronger cross-cut re-identification
+- [ ] **Real-time inference optimization** - TensorRT/ONNX export for sub-second latency
+- [ ] **Game report export** - PDF/HTML post-game fatigue reports with charts and recommendations
+- [ ] **Historical player modeling** - Cross-game fatigue baselines that adapt to individual player physiology
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
