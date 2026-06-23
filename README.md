@@ -1,9 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" width="500" alt="SportsSight — Real-time Fatigue Analytics"/>
-</p>
-
-<p align="center">
-  Detect player fatigue before it becomes a liability — from any camera feed, any sport, any level.
+  <img src="assets/hero_banner.png" width="100%" alt="SportsSight — Real-time Fatigue Analytics"/>
 </p>
 
 <p align="center">
