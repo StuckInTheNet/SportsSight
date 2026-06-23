@@ -86,42 +86,52 @@ Each player gets a score from **0** (fresh) to **100** (exhausted), computed fro
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        VIDEO INGESTION                           │
-│   Broadcast (RTMP/HLS)  │  Arena Cameras (RTSP)  │  Files       │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      VISION PIPELINE                             │
-│                                                                  │
-│  YOLOv8x ──→ ByteTrack ──→ Team Classifier ──→ Jersey OCR      │
-│  (detect)    (track)        (K-means color)     (EasyOCR)       │
-│                                                                  │
-│  YOLOv8x-Pose ──→ Court Homography ──→ Post-game Track Merger   │
-│  (17 keypoints)   (pixel → feet)       (consolidate fragments)  │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               FEATURE EXTRACTION + FATIGUE MODEL                 │
-│                                                                  │
-│  16 biomechanical features per player per frame                  │
-│  ↓                                                               │
-│  Rule-based scorer (deviation from first-quarter baseline)       │
-│  Temporal Transformer (learned model, when training data avail)  │
-│  ↓                                                               │
-│  Fatigue score (0–100) + confidence + trend + contributing factors│
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    DELIVERY LAYER                                │
-│                                                                  │
-│  FastAPI REST API ──→ PostgreSQL (TimescaleDB)                   │
-│  WebSocket live stream ──→ Redis Streams                         │
-│  React Dashboard (Tailwind + Recharts)                           │
-│  Annotated video output (bounding boxes + fatigue overlays)      │
-│  Configurable alerts (per-team thresholds + cooldowns)           │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph INPUT["📹 Video Ingestion"]
+        A1[Broadcast<br/>RTMP / HLS] 
+        A2[Arena Cameras<br/>RTSP]
+        A3[Recorded<br/>Files]
+    end
+
+    subgraph VISION["👁️ Vision Pipeline"]
+        B1[YOLOv8x<br/>Player Detection] --> B2[ByteTrack<br/>Multi-Object Tracking]
+        B2 --> B3[Team Classifier<br/>K-means on Jersey Color]
+        B3 --> B4[Jersey OCR<br/>EasyOCR]
+        B1 --> B5[YOLOv8x-Pose<br/>17 Keypoints]
+        B5 --> B6[Court Homography<br/>Pixel → Feet]
+        B4 --> B7[Track Merger<br/>Post-game Consolidation]
+    end
+
+    subgraph ANALYSIS["⚡ Feature Extraction + Fatigue Model"]
+        C1[16 Biomechanical<br/>Features per Player] --> C2{Scoring Engine}
+        C2 --> C3[Rule-based Scorer<br/>Baseline Deviation]
+        C2 --> C4[Temporal Transformer<br/>Learned Model]
+        C3 --> C5[Fatigue Score 0–100<br/>+ Confidence + Trend<br/>+ Contributing Factors]
+        C4 --> C5
+    end
+
+    subgraph DELIVERY["📊 Delivery Layer"]
+        D1[FastAPI REST + WebSocket]
+        D2[PostgreSQL + TimescaleDB]
+        D3[Redis Streams]
+        D4[React Dashboard<br/>Tailwind + Recharts]
+        D5[Annotated Video<br/>Bounding Boxes + HUD]
+        D6[Configurable Alerts<br/>Per-team Thresholds]
+    end
+
+    A1 & A2 & A3 --> B1
+    B6 & B7 --> C1
+    C5 --> D1
+    D1 --> D2 & D3
+    D3 --> D4
+    C5 --> D5
+    C5 --> D6
+
+    style INPUT fill:#0f2942,stroke:#1e4976,color:#e2e8f0
+    style VISION fill:#1a1a3e,stroke:#3b3b8d,color:#e2e8f0
+    style ANALYSIS fill:#1a2e1a,stroke:#2d6b2d,color:#e2e8f0
+    style DELIVERY fill:#2e1a1a,stroke:#6b2d2d,color:#e2e8f0
 ```
 
 ---
