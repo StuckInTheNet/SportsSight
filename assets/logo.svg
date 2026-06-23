@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="50%" style="stop-color:#06b6d4"/>
+      <stop offset="100%" style="stop-color:#10b981"/>
+    </linearGradient>
+    <linearGradient id="heat" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="50%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#ef4444"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" rx="48" fill="url(#bg)"/>
+
+  <!-- Outer ring -->
+  <circle cx="200" cy="185" r="120" fill="none" stroke="#1e3a5f" stroke-width="2" opacity="0.5"/>
+  <circle cx="200" cy="185" r="95" fill="none" stroke="#1e3a5f" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Heartbeat/pulse line -->
+  <polyline points="60,185 110,185 130,185 145,140 160,230 175,155 190,215 205,170 220,200 235,180 250,185 290,185 340,185" fill="none" stroke="url(#pulse)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+
+  <!-- Player silhouette (running athlete) -->
+  <g transform="translate(165, 115) scale(0.7)" fill="#e2e8f0" opacity="0.9">
+    <circle cx="55" cy="15" r="14"/>
+    <path d="M45,30 L35,75 L75,75 L65,30 Z"/>
+    <path d="M35,35 L15,60 L20,65 L42,42" fill="#cbd5e1"/>
+    <path d="M65,35 L90,55 L87,62 L62,45"/>
+    <path d="M42,75 L25,120 L32,122 L50,80" fill="#cbd5e1"/>
+    <path d="M58,75 L80,118 L73,122 L52,82"/>
+  </g>
+
+  <!-- Fatigue heat bar -->
+  <rect x="55" y="130" width="8" height="110" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="55" y="170" width="8" height="70" rx="4" fill="url(#heat)"/>
+
+  <!-- Data points -->
+  <circle cx="145" cy="140" r="3" fill="#3b82f6" opacity="0.7"/>
+  <circle cx="160" cy="230" r="3" fill="#ef4444" opacity="0.7"/>
+  <circle cx="175" cy="155" r="3" fill="#f59e0b" opacity="0.7"/>
+  <circle cx="190" cy="215" r="3" fill="#ef4444" opacity="0.7"/>
+  <circle cx="205" cy="170" r="3" fill="#f59e0b" opacity="0.7"/>
+  <circle cx="220" cy="200" r="3" fill="#10b981" opacity="0.7"/>
+  <circle cx="235" cy="180" r="3" fill="#3b82f6" opacity="0.7"/>
+
+  <!-- Detection bounding box hint -->
+  <rect x="280" y="120" width="55" height="75" rx="3" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="8,4" opacity="0.6"/>
+  <rect x="280" y="118" width="30" height="10" rx="2" fill="#10b981" opacity="0.4"/>
+
+  <!-- Text -->
+  <text x="200" y="340" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="36" font-weight="700" fill="#f1f5f9" letter-spacing="1">SportsSight</text>
+  <text x="200" y="368" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="400" fill="#64748b" letter-spacing="3">FATIGUE ANALYTICS</text>
+</svg>
