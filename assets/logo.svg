@@ -1,98 +1,60 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0c1222"/>
-      <stop offset="100%" style="stop-color:#162032"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#080e1a"/>
+      <stop offset="100%" style="stop-color:#111927"/>
     </linearGradient>
-    <linearGradient id="pulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#2563eb"/>
-      <stop offset="40%" style="stop-color:#0ea5e9"/>
-      <stop offset="100%" style="stop-color:#10b981"/>
-    </linearGradient>
-    <linearGradient id="pulseGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:0.4"/>
-      <stop offset="40%" style="stop-color:#0ea5e9;stop-opacity:0.3"/>
-      <stop offset="100%" style="stop-color:#10b981;stop-opacity:0.2"/>
-    </linearGradient>
-    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#3b82f6"/>
-      <stop offset="100%" style="stop-color:#0ea5e9"/>
+      <stop offset="100%" style="stop-color:#06b6d4"/>
     </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <linearGradient id="warm" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="35%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#ef4444"/>
+    </linearGradient>
+    <filter id="g1">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="softGlow">
-      <feGaussianBlur stdDeviation="8" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <filter id="g2">
+      <feGaussianBlur stdDeviation="12"/>
     </filter>
-    <clipPath id="roundClip">
-      <rect width="512" height="512" rx="96"/>
-    </clipPath>
   </defs>
 
-  <!-- Background -->
-  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+  <!-- BG -->
+  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
 
-  <!-- Subtle grid pattern -->
-  <g opacity="0.04" clip-path="url(#roundClip)">
-    <line x1="0" y1="128" x2="512" y2="128" stroke="white" stroke-width="1"/>
-    <line x1="0" y1="256" x2="512" y2="256" stroke="white" stroke-width="1"/>
-    <line x1="0" y1="384" x2="512" y2="384" stroke="white" stroke-width="1"/>
-    <line x1="128" y1="0" x2="128" y2="512" stroke="white" stroke-width="1"/>
-    <line x1="256" y1="0" x2="256" y2="512" stroke="white" stroke-width="1"/>
-    <line x1="384" y1="0" x2="384" y2="512" stroke="white" stroke-width="1"/>
+  <!-- Ambient glow behind the mark -->
+  <ellipse cx="256" cy="215" rx="100" ry="80" fill="#3b82f6" opacity="0.06" filter="url(#g2)"/>
+
+  <!-- The "S" mark — two interlocking pulse waves forming an abstract S -->
+  <g filter="url(#g1)">
+    <!-- Upper wave (blue→cyan) -->
+    <path d="M136,195 C136,195 170,130 220,155 C270,180 260,115 310,140 C360,165 376,120 376,120"
+          fill="none" stroke="url(#accent)" stroke-width="5.5" stroke-linecap="round"/>
+    <!-- Lower wave (offset, forms the S) -->
+    <path d="M136,260 C136,260 152,310 202,285 C252,260 242,325 292,300 C342,275 376,310 376,310"
+          fill="none" stroke="url(#accent)" stroke-width="5.5" stroke-linecap="round"/>
   </g>
 
-  <!-- Concentric radar rings -->
-  <circle cx="256" cy="220" r="155" fill="none" stroke="#1e3a5f" stroke-width="1" opacity="0.25"/>
-  <circle cx="256" cy="220" r="115" fill="none" stroke="#1e3a5f" stroke-width="0.75" opacity="0.15"/>
-  <circle cx="256" cy="220" r="75" fill="none" stroke="#1e3a5f" stroke-width="0.5" opacity="0.1"/>
+  <!-- Connecting vertical strokes (the S spine) -->
+  <line x1="220" y1="155" x2="202" y2="285" stroke="#3b82f6" stroke-width="1.5" opacity="0.15"/>
+  <line x1="310" y1="140" x2="292" y2="300" stroke="#06b6d4" stroke-width="1.5" opacity="0.15"/>
 
-  <!-- Eye shape (surveillance/analytics) — formed by two arcs -->
-  <g filter="url(#softGlow)" opacity="0.85">
-    <!-- Upper lid -->
-    <path d="M100,220 Q256,80 412,220" fill="none" stroke="url(#eyeGrad)" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- Lower lid -->
-    <path d="M100,220 Q256,360 412,220" fill="none" stroke="url(#eyeGrad)" stroke-width="2.5" stroke-linecap="round"/>
-  </g>
+  <!-- Data nodes at wave peaks -->
+  <circle cx="220" cy="155" r="5" fill="#3b82f6"/>
+  <circle cx="310" cy="140" r="5" fill="#0ea5e9"/>
+  <circle cx="202" cy="285" r="5" fill="#3b82f6"/>
+  <circle cx="292" cy="300" r="5" fill="#0ea5e9"/>
 
-  <!-- Iris ring -->
-  <circle cx="256" cy="220" r="52" fill="none" stroke="#2563eb" stroke-width="2" opacity="0.5"/>
-  <!-- Pupil -->
-  <circle cx="256" cy="220" r="24" fill="#0c1222"/>
-  <circle cx="256" cy="220" r="22" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity="0.8"/>
-  <!-- Pupil highlight -->
-  <circle cx="248" cy="212" r="6" fill="#3b82f6" opacity="0.5"/>
-  <circle cx="264" cy="226" r="3" fill="#0ea5e9" opacity="0.3"/>
-
-  <!-- Pulse/heartbeat line cutting through the eye -->
-  <g filter="url(#glow)">
-    <polyline
-      points="65,220 130,220 160,220 185,220 200,180 216,260 232,190 248,240 264,205 280,225 296,215 320,220 360,220 448,220"
-      fill="none" stroke="url(#pulseGrad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-  <!-- Pulse glow shadow -->
-  <polyline
-    points="65,220 130,220 160,220 185,220 200,180 216,260 232,190 248,240 264,205 280,225 296,215 320,220 360,220 448,220"
-    fill="none" stroke="url(#pulseGlow)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- Small data dots on pulse peaks -->
-  <circle cx="200" cy="180" r="3.5" fill="#2563eb" filter="url(#glow)"/>
-  <circle cx="216" cy="260" r="3.5" fill="#ef4444" filter="url(#glow)"/>
-  <circle cx="232" cy="190" r="3.5" fill="#0ea5e9" filter="url(#glow)"/>
-  <circle cx="248" cy="240" r="3.5" fill="#f59e0b" filter="url(#glow)"/>
-  <circle cx="264" cy="205" r="3.5" fill="#10b981" filter="url(#glow)"/>
+  <!-- Center fatigue gauge -->
+  <rect x="249" y="185" width="14" height="60" rx="7" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="249" y="210" width="14" height="35" rx="7" fill="url(#warm)"/>
 
   <!-- Wordmark -->
-  <text x="256" y="420" text-anchor="middle" font-family="'SF Pro Display', -apple-system, 'Helvetica Neue', sans-serif" font-size="52" font-weight="700" fill="#f1f5f9" letter-spacing="2">
-    Sport<tspan fill="url(#pulseGrad)">Sight</tspan>
+  <text x="256" y="410" text-anchor="middle" font-family="'Inter', 'SF Pro Display', -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="48" font-weight="800" fill="white" letter-spacing="1.5">
+    Sport<tspan fill="#3b82f6">Sight</tspan>
   </text>
-  <text x="256" y="452" text-anchor="middle" font-family="'SF Pro Display', -apple-system, 'Helvetica Neue', sans-serif" font-size="15" font-weight="500" fill="#475569" letter-spacing="6">FATIGUE ANALYTICS</text>
+  <text x="256" y="444" text-anchor="middle" font-family="'Inter', 'SF Pro Display', -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" font-weight="600" fill="#475569" letter-spacing="5.5">FATIGUE ANALYTICS</text>
 </svg>
